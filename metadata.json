@@ -1,0 +1,6 @@
+{
+  "name": "Xcash",
+  "description": "Smart Cash Counting Made Simple. Premium minimal fintech cash counting and history management app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
