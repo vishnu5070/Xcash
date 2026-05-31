@@ -21,7 +21,7 @@ class GreetingScreenshotTest {
 
   @Test
   fun greeting_screenshot() {
-    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.HeaderSection(onResetClick = {}) } }
+    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.HeaderSection(isDarkMode = false, onThemeToggle = {}, onResetClick = {}) } }
 
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
   }

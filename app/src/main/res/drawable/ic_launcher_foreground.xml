@@ -5,33 +5,45 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Perfectly Centered Minimalist 'C' Shape (White) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 48,28
-                          C 33.6,28 22,39.6 22,54
-                          C 22,68.4 33.6,80 48,80
-                          L 48,68
-                          C 40.3,68 34,61.7 34,54
-                          C 34,46.3 40.3,40 48,40
-                          Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.82"
+        android:scaleY="0.82">
 
-    <!-- Perfectly Centered Minimalist 'X' Shape (White) -->
-    <!-- Diagonal Stroke 1: Top-Left to Bottom-Right -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 58,30 
-                          L 70,30 
-                          L 86,78 
-                          L 74,78 
-                          Z" />
+        <!-- X -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="
+                M26,28
+                L36,28
+                L54,48
+                L72,28
+                L82,28
+                L60,54
+                L82,80
+                L72,80
+                L54,60
+                L36,80
+                L26,80
+                L48,54
+                Z"/>
 
-    <!-- Diagonal Stroke 2: Top-Right to Bottom-Left -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 74,30 
-                          L 86,30 
-                          L 70,78 
-                          L 58,78 
-                          Z" />
+        <!-- C -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="
+                M83,40
+                C79,34 72,30 63,30
+                C49,30 39,41 39,54
+                C39,67 49,78 63,78
+                C72,78 79,74 83,68
+                L75,63
+                C72,67 68,69 63,69
+                C54,69 47,62 47,54
+                C47,46 54,39 63,39
+                C68,39 72,41 75,45
+                Z"/>
+    </group>
+
 </vector>

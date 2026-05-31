@@ -54,26 +54,20 @@ class CashXViewModel(
         }
     }
 
-    // Real-time calculation derivations on Dispatchers.Default CPU-bound thread pool
+    // Real-time calculation derivations (Synchronous, ultra-fast inline math)
     val totalCash: StateFlow<Double> = combine(_denominations, _coinsInput) { map, coinsStr ->
-        withContext(Dispatchers.Default) {
-            val notesSum = map.entries.sumOf { (denom, count) -> (denom * count).toDouble() }
-            val coinsVal = coinsStr.toDoubleOrNull() ?: 0.0
-            notesSum + coinsVal
-        }
+        val notesSum = map.entries.sumOf { (denom, count) -> (denom * count).toDouble() }
+        val coinsVal = coinsStr.toDoubleOrNull() ?: 0.0
+        notesSum + coinsVal
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val totalNotes: StateFlow<Int> = _denominations.map { map ->
-        withContext(Dispatchers.Default) {
-            map.values.sum()
-        }
+        map.values.sum()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val remainingBalance: StateFlow<Double> = combine(totalCash, _subtractInput) { cash, subStr ->
-        withContext(Dispatchers.Default) {
-            val subValue = subStr.toDoubleOrNull() ?: 0.0
-            (cash - subValue).coerceAtLeast(0.0)
-        }
+        val subValue = subStr.toDoubleOrNull() ?: 0.0
+        (cash - subValue).coerceAtLeast(0.0)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // Historical calculations

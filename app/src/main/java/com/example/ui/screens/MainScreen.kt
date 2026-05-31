@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import kotlinx.coroutines.launch
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -65,7 +66,12 @@ fun MainScreen(viewModel: CashXViewModel) {
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
 
-    var activeTab by remember { mutableStateOf(0) } // 0: Counter, 1: History
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(pagerState.currentPage) {
+        focusManager.clearFocus()
+    }
 
     Scaffold(
         modifier = Modifier
@@ -93,18 +99,22 @@ fun MainScreen(viewModel: CashXViewModel) {
 
             // 2. Custom Dual Tab Segment Switcher
             TabSegmentControl(
-                selectedTab = activeTab,
-                onTabSelected = {
-                    activeTab = it
-                    focusManager.clearFocus()
+                selectedTab = pagerState.currentPage,
+                onTabSelected = { page ->
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(page)
+                    }
                 }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Screen content cross-fade swap
-            Box(modifier = Modifier.weight(1f)) {
-                if (activeTab == 0) {
+            // 3. Screen content with lag-free HorizontalPager and swipe support
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                if (page == 0) {
                     CounterTabScreen(
                         denominations = denominations,
                         coinsInput = coinsInput,
@@ -220,11 +230,6 @@ fun HeaderSection(
                 onClick = onThemeToggle,
                 modifier = Modifier
                     .size(34.dp)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
                     .testTag("theme_toggle_button")
             ) {
                 Icon(
@@ -481,7 +486,7 @@ fun CounterTabScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "EXPENSE",
+                                    text = "FLOAT",
                                     fontSize = 10.sp,
                                     color = baseColor.copy(alpha = 0.40f),
                                     fontWeight = FontWeight.Bold,
@@ -582,7 +587,7 @@ fun CounterTabScreen(
             }
         }
 
-        // Subtract expense section (Memo input fully removed)
+        // Subtract float section (Memo input fully removed)
         item {
             GlassCard(
                 modifier = Modifier.fillMaxWidth().testTag("subtract_card"),
@@ -590,7 +595,7 @@ fun CounterTabScreen(
                 borderAlpha = 0.06f
             ) {
                 Text(
-                    text = "SUBTRACT EXPENSE AMOUNT",
+                    text = "FLOAT",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = baseColor.copy(alpha = 0.40f),
@@ -602,7 +607,7 @@ fun CounterTabScreen(
                 SleekTextField(
                     value = subtractInput,
                     onValueChange = onSubtractChange,
-                    placeholder = "Subtract Expense (e.g. 150)",
+                    placeholder = "Float (e.g. 150)",
                     keyboardType = KeyboardType.Decimal,
                     leadingIcon = {
                         Icon(
@@ -984,7 +989,7 @@ fun HistoryItemCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "Expense Subtract:", fontSize = 12.sp, color = inactiveColor)
+                    Text(text = "Float :", fontSize = 12.sp, color = inactiveColor)
                     Text(text = "-${formatCurrency(calculation.subtractAmount)}", fontSize = 12.sp, color = baseColor, fontWeight = FontWeight.Bold)
                 }
 
@@ -1089,7 +1094,7 @@ fun formatShareSummary(
     sb.append("----------------------------\n")
     sb.append("Gross Cash Total : ${formatCurrency(totalCash)} ($totalNotes bills)\n")
     if (subtract > 0) {
-        sb.append("Expense Subtract : -${formatCurrency(subtract)}\n")
+        sb.append("Float Subtract : -${formatCurrency(subtract)}\n")
     }
     sb.append("Net Ledger Balance: ${formatCurrency(remaining)}\n")
     sb.append("----------------------------\n")
