@@ -12,7 +12,8 @@ data class Calculation(
     val totalNotes: Int,
     val totalCash: Double,
     val remainingBalance: Double,
-    val noteMemo: String = ""
+    val noteMemo: String = "",
+    val posAmount: Double = 0.0
 )
 
 fun Calculation.getDenominationsMap(): Map<Int, Int> {

@@ -59,14 +59,17 @@ fun MainScreen(viewModel: CashXViewModel) {
     val denominations by viewModel.denominations.collectAsStateWithLifecycle()
     val coinsInput by viewModel.coinsInput.collectAsStateWithLifecycle()
     val subtractInput by viewModel.subtractInput.collectAsStateWithLifecycle()
+    val posTotalBalanceInput by viewModel.posTotalBalanceInput.collectAsStateWithLifecycle()
+    val posInput by viewModel.posInput.collectAsStateWithLifecycle()
     val totalCash by viewModel.totalCash.collectAsStateWithLifecycle()
     val totalNotes by viewModel.totalNotes.collectAsStateWithLifecycle()
     val remainingBalance by viewModel.remainingBalance.collectAsStateWithLifecycle()
+    val posRemainingBalance by viewModel.posRemainingBalance.collectAsStateWithLifecycle()
     val filteredHistory by viewModel.filteredCalculations.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
 
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.currentPage) {
@@ -146,8 +149,44 @@ fun MainScreen(viewModel: CashXViewModel) {
                                 totalCash = totalCash,
                                 totalNotes = totalNotes,
                                 subtract = subtractInput.toDoubleOrNull() ?: 0.0,
+                                posAmount = 0.0,
                                 remaining = remainingBalance,
                                 note = ""
+                            )
+                            shareText(context, summary)
+                        }
+                    )
+                } else if (page == 1) {
+                    PosTabScreen(
+                        posTotalBalanceInput = posTotalBalanceInput,
+                        posInput = posInput,
+                        posRemainingBalance = posRemainingBalance,
+                        onPosTotalBalanceChange = { viewModel.updatePosTotalBalance(it) },
+                        onPosChange = { viewModel.updatePosAmount(it) },
+                        onSaveClick = {
+                            if ((posTotalBalanceInput.toDoubleOrNull() ?: 0.0) == 0.0 && (posInput.toDoubleOrNull() ?: 0.0) == 0.0) {
+                                Toast.makeText(context, "Nothing to save yet", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.savePosCalculation {
+                                    Toast.makeText(context, "POS Calculation recorded in Ledger", Toast.LENGTH_SHORT).show()
+                                    // Move to History tab on save
+                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                }
+                            }
+                        },
+                        onClearClick = {
+                            viewModel.clearAllInputs()
+                            Toast.makeText(context, "POS values cleared", Toast.LENGTH_SHORT).show()
+                        },
+                        onShareClick = {
+                            val summary = formatShareSummary(
+                                denominations = emptyMap(),
+                                totalCash = posTotalBalanceInput.toDoubleOrNull() ?: 0.0,
+                                totalNotes = 0,
+                                subtract = 0.0,
+                                posAmount = posInput.toDoubleOrNull() ?: 0.0,
+                                remaining = posRemainingBalance,
+                                note = "POS Calculation"
                             )
                             shareText(context, summary)
                         }
@@ -172,6 +211,7 @@ fun MainScreen(viewModel: CashXViewModel) {
                                 totalCash = calc.totalCash,
                                 totalNotes = calc.totalNotes,
                                 subtract = calc.subtractAmount,
+                                posAmount = calc.posAmount,
                                 remaining = calc.remainingBalance,
                                 note = calc.noteMemo,
                                 timestamp = calc.timestamp
@@ -274,54 +314,122 @@ fun TabSegmentControl(
     val onBgColor = MaterialTheme.colorScheme.onBackground
     val inactiveColor = if (isLight) LightTextSecondary else TextSecondary
 
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(50.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(onBgColor.copy(alpha = 0.03f))
             .border(1.dp, onBgColor.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
             .padding(4.dp)
     ) {
-        val countWeight = if (selectedTab == 0) 1f else 1f
-        val historyWeight = if (selectedTab == 1) 1f else 1f
+        val tabWidth = maxWidth / 3
 
-        // Tab item 1
+        // Sliding liquid indicator with custom spring elasticity
+        val indicatorOffset by animateDpAsState(
+            targetValue = tabWidth * selectedTab,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            label = "tab_indicator_offset"
+        )
+
+        // Glass sliding pill
         Box(
             modifier = Modifier
-                .weight(countWeight)
+                .offset(x = indicatorOffset)
+                .width(tabWidth)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (selectedTab == 0) MaterialTheme.colorScheme.primary else Color.Transparent)
-                .clickable { onTabSelected(0) }
-                .testTag("tab_counter"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Calculator",
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 14.sp,
-                color = if (selectedTab == 0) MaterialTheme.colorScheme.onPrimary else inactiveColor
-            )
-        }
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.4f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+        )
 
-        // Tab item 2
-        Box(
-            modifier = Modifier
-                .weight(historyWeight)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (selectedTab == 1) MaterialTheme.colorScheme.primary else Color.Transparent)
-                .clickable { onTabSelected(1) }
-                .testTag("tab_history"),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = "History",
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 14.sp,
-                color = if (selectedTab == 1) MaterialTheme.colorScheme.onPrimary else inactiveColor
+            // Tab item 1: Calculator
+            val tab0Color by animateColorAsState(
+                targetValue = if (selectedTab == 0) MaterialTheme.colorScheme.onPrimary else inactiveColor,
+                animationSpec = tween(durationMillis = 200),
+                label = "tab0_color"
             )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable { onTabSelected(0) }
+                    .testTag("tab_counter"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Calculator",
+                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = tab0Color
+                )
+            }
+
+            // Tab item 2: POS
+            val tab1Color by animateColorAsState(
+                targetValue = if (selectedTab == 1) MaterialTheme.colorScheme.onPrimary else inactiveColor,
+                animationSpec = tween(durationMillis = 200),
+                label = "tab1_color"
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable { onTabSelected(1) }
+                    .testTag("tab_pos"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "POS",
+                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = tab1Color
+                )
+            }
+
+            // Tab item 3: History
+            val tab2Color by animateColorAsState(
+                targetValue = if (selectedTab == 2) MaterialTheme.colorScheme.onPrimary else inactiveColor,
+                animationSpec = tween(durationMillis = 200),
+                label = "tab2_color"
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable { onTabSelected(2) }
+                    .testTag("tab_history"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "History",
+                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = tab2Color
+                )
+            }
         }
     }
 }
@@ -392,7 +500,7 @@ fun CounterTabScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "TOTAL BALANCE",
+                            text = "TOTAL AMOUNT",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             color = baseColor.copy(alpha = 0.4f),
@@ -501,6 +609,8 @@ fun CounterTabScreen(
                                     color = baseColor
                                 )
                             }
+
+
                         }
                     }
                 }
@@ -587,7 +697,7 @@ fun CounterTabScreen(
             }
         }
 
-        // Subtract float section (Memo input fully removed)
+        // FLOAT amount card
         item {
             GlassCard(
                 modifier = Modifier.fillMaxWidth().testTag("subtract_card"),
@@ -607,7 +717,7 @@ fun CounterTabScreen(
                 SleekTextField(
                     value = subtractInput,
                     onValueChange = onSubtractChange,
-                    placeholder = "Float (e.g. 150)",
+                    placeholder = "Float (e.g. 1500)",
                     keyboardType = KeyboardType.Decimal,
                     leadingIcon = {
                         Icon(
@@ -992,6 +1102,17 @@ fun HistoryItemCard(
                     Text(text = "Float :", fontSize = 12.sp, color = inactiveColor)
                     Text(text = "-${formatCurrency(calculation.subtractAmount)}", fontSize = 12.sp, color = baseColor, fontWeight = FontWeight.Bold)
                 }
+                if (calculation.posAmount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "POS Amount:", fontSize = 12.sp, color = inactiveColor)
+                        Text(text = "-${formatCurrency(calculation.posAmount)}", fontSize = 12.sp, color = baseColor, fontWeight = FontWeight.Bold)
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1000,19 +1121,25 @@ fun HistoryItemCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    SecondaryButton(
-                        text = "Share entry",
+                    OutlinedButton(
                         onClick = onShare,
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Share entry",
-                                tint = secondaryContentColor,
-                                modifier = Modifier.size(12.dp)
-                            )
-                        },
-                        modifier = Modifier.height(38.dp)
-                    )
+                        border = BorderStroke(1.dp, baseColor.copy(alpha = 0.12f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = baseColor),
+                        shape = RoundedCornerShape(32.dp),
+                        modifier = Modifier
+                            .height(38.dp)
+                            .background(baseColor.copy(alpha = 0.04f), RoundedCornerShape(32.dp)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share entry",
+                            tint = secondaryContentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Share entry", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
 
                     Spacer(modifier = Modifier.width(10.dp))
 
@@ -1067,6 +1194,7 @@ fun formatShareSummary(
     totalCash: Double,
     totalNotes: Int,
     subtract: Double,
+    posAmount: Double = 0.0,
     remaining: Double,
     note: String,
     timestamp: Long = System.currentTimeMillis()
@@ -1096,7 +1224,10 @@ fun formatShareSummary(
     if (subtract > 0) {
         sb.append("Float Subtract : -${formatCurrency(subtract)}\n")
     }
-    sb.append("Net Ledger Balance: ${formatCurrency(remaining)}\n")
+    if (posAmount > 0) {
+        sb.append("POS Subtract   : -${formatCurrency(posAmount)}\n")
+    }
+    sb.append("Balance: ${formatCurrency(remaining)}\n")
     sb.append("----------------------------\n")
     sb.append("Smart Cash Counting Made Simple • Xcash")
     return sb.toString()
@@ -1114,5 +1245,319 @@ fun shareText(context: Context, text: String) {
         context.startActivity(shareIntent)
     } catch (e: Exception) {
         Toast.makeText(context, "Sharing failed", Toast.LENGTH_SHORT).show()
+    }
+}
+
+@Composable
+fun PosTabScreen(
+    posTotalBalanceInput: String,
+    posInput: String,
+    posRemainingBalance: Double,
+    onPosTotalBalanceChange: (String) -> Unit,
+    onPosChange: (String) -> Unit,
+    onSaveClick: () -> Unit,
+    onClearClick: () -> Unit,
+    onShareClick: () -> Unit
+) {
+    val isLight = MaterialTheme.colorScheme.background == AbsoluteWhite || MaterialTheme.colorScheme.background == Color.White
+    val baseColor = if (isLight) Color.Black else Color.White
+    val buttonContentColor = if (isLight) Color.White else Color.Black
+    val inactiveColor = if (isLight) LightTextSecondary else TextSecondary
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("pos_support_screen_scroll"),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Main glass Dynamic Remaining Balance Card
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Glow backdrop
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(baseColor.copy(alpha = 0.12f), Color.Transparent),
+                            ),
+                            shape = RoundedCornerShape(32.dp)
+                        )
+                )
+
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("pos_net_balance_card"),
+                    alpha = 0.06f,
+                    borderAlpha = 0.08f,
+                    cornerRadius = 32.dp
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "BALANCE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = baseColor.copy(alpha = 0.4f),
+                            letterSpacing = 1.5.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = formatCurrency(posRemainingBalance),
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Light,
+                            color = baseColor,
+                            letterSpacing = (-1.5).sp,
+                            modifier = Modifier.testTag("pos_net_balance_text")
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        HorizontalDivider(color = baseColor.copy(alpha = 0.10f))
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Gross Balance Column
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "TOTAL AMOUNT",
+                                    fontSize = 10.sp,
+                                    color = baseColor.copy(alpha = 0.40f),
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val totalVal = posTotalBalanceInput.toDoubleOrNull() ?: 0.0
+                                Text(
+                                    text = formatCurrency(totalVal),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = baseColor
+                                )
+                            }
+
+                            // Divider
+                            Box(
+                                modifier = Modifier
+                                    .height(24.dp)
+                                    .width(1.dp)
+                                    .background(baseColor.copy(alpha = 0.10f))
+                            )
+
+                            // POS settlement deduct Column
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "POS DEDUCTION",
+                                    fontSize = 10.sp,
+                                    color = baseColor.copy(alpha = 0.40f),
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val posVal = posInput.toDoubleOrNull() ?: 0.0
+                                Text(
+                                    text = "-${formatCurrency(posVal)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = baseColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Header Section title
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "POS ASSISTANT",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = baseColor.copy(alpha = 0.40f),
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Total Amount - POS",
+                    fontSize = 10.sp,
+                    color = if (isLight) LightTextTertiary else TextTertiary
+                )
+            }
+        }
+
+        // Input 1: Total Balance / Opening Balance Card
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth().testTag("pos_total_input_card"),
+                alpha = 0.03f,
+                borderAlpha = 0.06f
+            ) {
+                Text(
+                    text = "TOTAL AMOUNT",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = baseColor.copy(alpha = 0.40f),
+                    letterSpacing = 1.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                SleekTextField(
+                    value = posTotalBalanceInput,
+                    onValueChange = onPosTotalBalanceChange,
+                    placeholder = "Enter total amount",
+                    keyboardType = KeyboardType.Decimal,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalanceWallet,
+                            contentDescription = "Wallet Icon",
+                            tint = inactiveColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    modifier = Modifier.testTag("pos_total_balance_input_field")
+                )
+            }
+        }
+
+        // Input 2: POS Amount Settle / Deduct Card
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth().testTag("pos_deduct_input_card"),
+                alpha = 0.03f,
+                borderAlpha = 0.06f
+            ) {
+                Text(
+                    text = "POS AMOUNT TO SUBTRACT",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = baseColor.copy(alpha = 0.40f),
+                    letterSpacing = 1.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                SleekTextField(
+                    value = posInput,
+                    onValueChange = onPosChange,
+                    placeholder = "Enter POS amount ",
+                    keyboardType = KeyboardType.Decimal,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Payment,
+                            contentDescription = "POS Icon",
+                            tint = inactiveColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    modifier = Modifier.testTag("pos_sub_input_field")
+                )
+            }
+        }
+
+        // Actions
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FintechButton(
+                    text = "Save POS Calculation",
+                    onClick = onSaveClick,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save Icon",
+                            tint = buttonContentColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .testTag("pos_save_button")
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Outlined styling for secondary action
+                    Button(
+                        onClick = onClearClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = baseColor
+                        ),
+                        border = BorderStroke(1.dp, baseColor.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .testTag("pos_clear_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Clear Icon",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Clear", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+
+                    Button(
+                        onClick = onShareClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = baseColor.copy(alpha = 0.06f),
+                            contentColor = baseColor
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .testTag("pos_share_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share Icon",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Share", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
     }
 }

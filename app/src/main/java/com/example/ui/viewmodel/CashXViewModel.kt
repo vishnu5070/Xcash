@@ -30,6 +30,12 @@ class CashXViewModel(
     private val _subtractInput = MutableStateFlow("")
     val subtractInput: StateFlow<String> = _subtractInput.asStateFlow()
 
+    private val _posTotalBalanceInput = MutableStateFlow("")
+    val posTotalBalanceInput: StateFlow<String> = _posTotalBalanceInput.asStateFlow()
+
+    private val _posInput = MutableStateFlow("")
+    val posInput: StateFlow<String> = _posInput.asStateFlow()
+
     private val _noteMemoInput = MutableStateFlow("") // Unused but kept for model compatibility
     val noteMemoInput: StateFlow<String> = _noteMemoInput.asStateFlow()
 
@@ -70,6 +76,12 @@ class CashXViewModel(
         (cash - subValue).coerceAtLeast(0.0)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    val posRemainingBalance: StateFlow<Double> = combine(_posTotalBalanceInput, _posInput) { totalBalStr, posStr ->
+        val totalBal = totalBalStr.toDoubleOrNull() ?: 0.0
+        val posValue = posStr.toDoubleOrNull() ?: 0.0
+        totalBal - posValue
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
     // Historical calculations
     val allCalculations: StateFlow<List<Calculation>> = repository.allCalculations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -85,6 +97,7 @@ class CashXViewModel(
                 calc.noteMemo.contains(query, ignoreCase = true) ||
                 calc.totalCash.toString().contains(query) ||
                 calc.remainingBalance.toString().contains(query) ||
+                calc.posAmount.toString().contains(query) ||
                 getFormattedDate(calc.timestamp).contains(query, ignoreCase = true)
             }
             matchesQuery
@@ -123,6 +136,20 @@ class CashXViewModel(
         }
     }
 
+    fun updatePosAmount(amount: String) {
+        // Enforce numeric/decimal structure
+        if (amount.length <= 8 && (amount.isEmpty() || amount.matches(Regex("^\\d*\\.?\\d*$")))) {
+            _posInput.value = amount
+        }
+    }
+
+    fun updatePosTotalBalance(amount: String) {
+        // Enforce numeric/decimal structure
+        if (amount.length <= 8 && (amount.isEmpty() || amount.matches(Regex("^\\d*\\.?\\d*$")))) {
+            _posTotalBalanceInput.value = amount
+        }
+    }
+
     fun updateNoteMemo(note: String) {
         _noteMemoInput.value = note
     }
@@ -135,6 +162,8 @@ class CashXViewModel(
         _denominations.value = standardDenominations.associateWith { 0 }
         _coinsInput.value = ""
         _subtractInput.value = ""
+        _posTotalBalanceInput.value = ""
+        _posInput.value = ""
         _noteMemoInput.value = ""
     }
 
@@ -163,7 +192,36 @@ class CashXViewModel(
                     totalNotes = notes,
                     totalCash = cash,
                     remainingBalance = remaining,
-                    noteMemo = "Cash count"
+                    noteMemo = "Cash count",
+                    posAmount = 0.0
+                )
+                repository.insert(calc)
+            }
+            clearAllInputs()
+            onSuccess()
+        }
+    }
+
+    fun savePosCalculation(onSuccess: () -> Unit = {}) {
+        val totalBal = _posTotalBalanceInput.value.toDoubleOrNull() ?: 0.0
+        val posAmt = _posInput.value.toDoubleOrNull() ?: 0.0
+        val remaining = posRemainingBalance.value
+
+        if (totalBal == 0.0 && posAmt == 0.0) {
+            // Nothing to save
+            return
+        }
+
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val calc = Calculation(
+                    denominationsJson = "{}",
+                    subtractAmount = 0.0,
+                    totalNotes = 0,
+                    totalCash = totalBal,
+                    remainingBalance = remaining,
+                    noteMemo = "POS Calculation",
+                    posAmount = posAmt
                 )
                 repository.insert(calc)
             }
